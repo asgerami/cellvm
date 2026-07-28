@@ -94,9 +94,13 @@ pub fn build(f: &Function) -> Cfg {
 
 pub fn reachable(cfg: &Cfg) -> BTreeSet<usize> {
     let mut seen = BTreeSet::new();
-    let mut q = VecDeque::from([cfg.entry]);
+    if cfg.blocks.is_empty() {
+        return seen;
+    }
+    let entry = cfg.entry.min(cfg.blocks.len().saturating_sub(1));
+    let mut q = VecDeque::from([entry]);
     while let Some(b) = q.pop_front() {
-        if !seen.insert(b) {
+        if b >= cfg.blocks.len() || !seen.insert(b) {
             continue;
         }
         for &s in &cfg.blocks[b].succs {
