@@ -1,0 +1,36 @@
+[package]
+name = "cellvm"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Compact stack VM with load/verify/execute pipeline"
+repository = "https://github.com/example/cellvm"
+readme = "README.md"
+keywords = ["vm", "bytecode", "verifier"]
+categories = ["compilers", "emulators"]
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "poc_driver"
+path = "tools/poc_driver.rs"
+
+[[example]]
+name = "verify_blob"
+path = "examples/verify_blob.rs"
+
+[[example]]
+name = "print_blocks"
+path = "examples/print_blocks.rs"
+
+[[example]]
+name = "debug_blob"
+path = "examples/debug_blob.rs"
+
+[[example]]
+name = "disasm_module"
+path = "examples/disasm_module.rs"
+
+[profile.release]
+debug = true
