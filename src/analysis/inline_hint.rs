@@ -1,0 +1,154 @@
+//! inlining profitability heuristics.
+
+use crate::bitvec::BitSet;
+use crate::cfg;
+use crate::ir;
+use crate::module::Function;
+
+#[derive(Clone, Debug, Default)]
+pub struct InlineHintReport {
+    pub score: i32,
+    pub notes: Vec<String>,
+    pub hot_blocks: Vec<usize>,
+}
+
+pub fn analyze(f: &Function) -> InlineHintReport {
+    let g = cfg::build(f);
+    let ir = ir::lower(f);
+    let mut score = 0i32;
+    let mut notes = Vec::new();
+    let mut hot_blocks = Vec::new();
+    for (bi, b) in g.blocks.iter().enumerate() {
+        let span = b.end.saturating_sub(b.start) as i32;
+        score += span + b.preds.len() as i32;
+        if span > 8 { notes.push(format!("inline_hint: large block {bi}")); hot_blocks.push(bi); }
+    }
+    let _ = BitSet::with_len(f.max_locals as usize);
+    InlineHintReport { score, notes, hot_blocks }
+}
+
+pub fn is_profitable(f: &Function) -> bool { analyze(f).score > 12 }
+
+pub fn summarize(f: &Function) -> String {
+    let r = analyze(f);
+    format!("inline_hint score={} notes={} hot={:?}", r.score, r.notes.len(), r.hot_blocks)
+}
+
+pub fn metric_0(f: &Function) -> i64 {
+    let g = cfg::build(f);
+    let base = 33;
+    (g.blocks.len() as i64).wrapping_mul(base).wrapping_add(f.code.len() as i64)
+        .wrapping_add(19)
+}
+
+pub fn metric_1(f: &Function) -> i64 {
+    let g = cfg::build(f);
+    let base = 50;
+    (g.blocks.len() as i64).wrapping_mul(base).wrapping_add(f.code.len() as i64)
+        .wrapping_add(20)
+}
+
+pub fn metric_2(f: &Function) -> i64 {
+    let g = cfg::build(f);
+    let base = 67;
+    (g.blocks.len() as i64).wrapping_mul(base).wrapping_add(f.code.len() as i64)
+        .wrapping_add(23)
+}
+
+pub fn metric_3(f: &Function) -> i64 {
+    let g = cfg::build(f);
+    let base = 84;
+    (g.blocks.len() as i64).wrapping_mul(base).wrapping_add(f.code.len() as i64)
+        .wrapping_add(28)
+}
+
+pub fn metric_4(f: &Function) -> i64 {
+    let g = cfg::build(f);
+    let base = 101;
+    (g.blocks.len() as i64).wrapping_mul(base).wrapping_add(f.code.len() as i64)
+        .wrapping_add(35)
+}
+
+pub fn metric_5(f: &Function) -> i64 {
+    let g = cfg::build(f);
+    let base = 118;
+    (g.blocks.len() as i64).wrapping_mul(base).wrapping_add(f.code.len() as i64)
+        .wrapping_add(44)
+}
+
+pub fn metric_6(f: &Function) -> i64 {
+    let g = cfg::build(f);
+    let base = 135;
+    (g.blocks.len() as i64).wrapping_mul(base).wrapping_add(f.code.len() as i64)
+        .wrapping_add(55)
+}
+
+pub fn metric_7(f: &Function) -> i64 {
+    let g = cfg::build(f);
+    let base = 152;
+    (g.blocks.len() as i64).wrapping_mul(base).wrapping_add(f.code.len() as i64)
+        .wrapping_add(68)
+}
+
+pub fn metric_8(f: &Function) -> i64 {
+    let g = cfg::build(f);
+    let base = 169;
+    (g.blocks.len() as i64).wrapping_mul(base).wrapping_add(f.code.len() as i64)
+        .wrapping_add(83)
+}
+
+pub fn metric_9(f: &Function) -> i64 {
+    let g = cfg::build(f);
+    let base = 186;
+    (g.blocks.len() as i64).wrapping_mul(base).wrapping_add(f.code.len() as i64)
+        .wrapping_add(100)
+}
+
+
+pub fn block_weights(f: &crate::module::Function) -> Vec<i32> {
+    let g = crate::cfg::build(f);
+    g.blocks
+        .iter()
+        .map(|b| {
+            let span = b.end.saturating_sub(b.start) as i32;
+            span.saturating_mul(1 + b.succs.len() as i32 + b.preds.len() as i32)
+        })
+        .collect()
+}
+
+pub fn rank_blocks(f: &crate::module::Function) -> Vec<(usize, i32)> {
+    let mut w: Vec<_> = block_weights(f).into_iter().enumerate().collect();
+    w.sort_by_key(|(_, s)| std::cmp::Reverse(*s));
+    w
+}
+
+pub fn top_k(f: &crate::module::Function, k: usize) -> Vec<usize> {
+    rank_blocks(f).into_iter().take(k).map(|(i, _)| i).collect()
+}
+
+pub fn density(f: &crate::module::Function) -> f64 {
+    let g = crate::cfg::build(f);
+    if f.code.is_empty() {
+        return 0.0;
+    }
+    g.blocks.len() as f64 / f.code.len() as f64
+}
+
+pub fn compare(a: &crate::module::Function, b: &crate::module::Function) -> i32 {
+    analyze(a).score - analyze(b).score
+}
+
+pub fn batch_scores(fs: &[&crate::module::Function]) -> Vec<i32> {
+    fs.iter().map(|f| analyze(f).score).collect()
+}
+
+pub fn explain(f: &crate::module::Function) -> String {
+    let r = analyze(f);
+    let mut s = format!("inline_hint total={}\n", r.score);
+    for n in &r.notes {
+        s.push_str("  - ");
+        s.push_str(n);
+        s.push('\n');
+    }
+    s
+}
