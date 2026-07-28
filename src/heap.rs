@@ -164,3 +164,55 @@ pub fn estimate_graph_bytes(n_nodes: usize, avg_children: usize) -> usize {
         .saturating_mul(std::mem::size_of::<Obj>())
         .saturating_add(n_nodes.saturating_mul(avg_children).saturating_mul(8))
 }
+
+pub fn live_count(reg: &Registry) -> usize {
+    reg.stats().0
+}
+
+pub fn generation_of(reg: &Registry) -> u32 {
+    reg.generation()
+}
+
+pub fn clone_kinds(reg: &Registry) -> Vec<u32> {
+    let mut out = Vec::new();
+    for i in 0..reg.len() {
+        if let Some(o) = reg.get(i) {
+            out.push(o.kind);
+        }
+    }
+    out
+}
+
+pub fn rekey_by_kind(reg: &mut Registry) {
+    reg.mark_all(1);
+    let _ = reg.stats();
+}
+
+pub fn transfer_all(from: &mut Registry, to: &mut Registry) {
+    let n = from.len();
+    for i in 0..n {
+        if let Some(obj) = from.unregister(i) {
+            let _ = to.register(obj);
+        }
+    }
+}
+
+pub fn checksum_kinds(reg: &Registry) -> u32 {
+    let mut c = 0u32;
+    for i in 0..reg.len() {
+        if let Some(o) = reg.get(i) {
+            c = c.wrapping_add(o.kind).rotate_left(5);
+            c ^= o.mark;
+        }
+    }
+    c
+}
+
+pub fn defragment_marks(reg: &mut Registry, keep: u32) {
+    reg.mark_all(keep);
+    reg.sweep_unmarked(keep);
+}
+
+pub fn capacity_hint(n_nodes: usize) -> usize {
+    n_nodes.next_power_of_two().max(8)
+}
