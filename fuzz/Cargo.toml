@@ -1,0 +1,36 @@
+[package]
+name = "cellvm-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+cellvm = { path = ".." }
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "load_run_fuzzer"
+path = "fuzz_targets/load_run_fuzzer.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "typeflow_fuzzer"
+path = "fuzz_targets/typeflow_fuzzer.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "deser_fuzzer"
+path = "fuzz_targets/deser_fuzzer.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "assemble_fuzzer"
+path = "fuzz_targets/assemble_fuzzer.rs"
+test = false
+doc = false

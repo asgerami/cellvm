@@ -1,0 +1,12 @@
+language: rust
+fuzzing_engines:
+  - libfuzzer
+sanitizers:
+  - address
+architectures:
+  - x86_64
+fuzz_targets:
+  - load_run_fuzzer
+  - typeflow_fuzzer
+  - deser_fuzzer
+  - assemble_fuzzer
