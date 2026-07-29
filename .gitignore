@@ -2,6 +2,7 @@ target/
 .cargo_home/
 **/*.rs.bk
 *.orig
+!vendor/**/*.orig
 .idea/
 .vscode/
 *.swp
