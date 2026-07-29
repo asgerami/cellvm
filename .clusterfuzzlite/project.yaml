@@ -1,5 +1,5 @@
-homepage: "https://github.com/asgerami/cellvm"
 language: rust
+main_repo: '.'
 primary_contact: "amiraman467@gmail.com"
 auto_ccs: []
 fuzzing_engines:
