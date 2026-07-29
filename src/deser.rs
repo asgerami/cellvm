@@ -1,7 +1,4 @@
 //! Value-blob deserialization (H3).
-//!
-//! INV-OWN-01: registration transfers ownership to the registry.
-//! Registry::Drop frees it again.
 
 use crate::error::{Error, Result};
 use crate::heap::{self, Registry};
@@ -25,7 +22,6 @@ struct Partial {
 pub fn deserialize_and_drop(input: &[u8]) -> Result<()> {
     let mut reg = Registry::new();
     deserialize_into(input, &mut reg)?;
-    // Registry drop frees all registered objects.
     Ok(())
 }
 
@@ -53,7 +49,6 @@ pub fn deserialize_into(input: &[u8], reg: &mut Registry) -> Result<()> {
         off += 16;
 
         heap::validate_kind(kind)?;
-        // Early checks before registration.
         if child_count > 64 {
             return Err(Error::DeserFailed("child_count"));
         }
@@ -67,16 +62,13 @@ pub fn deserialize_into(input: &[u8], reg: &mut Registry) -> Result<()> {
             owned: None,
         };
 
-        // Register transfers ownership into registry.
         let idx = reg.register(obj);
         partial.registered = Some(idx);
 
-        // After register, the object is owned by registry — this duplicates ownership.
         if let Some(o) = reg.get_mut(idx) {
             partial.owned = Some(o as *mut crate::value::Obj);
         }
 
-        // Late validation AFTER registration.
         heap::validate_mark(mark).map_err(|e| {
             if let Some(p) = partial.owned.take() {
                 if !p.is_null() {
@@ -90,7 +82,6 @@ pub fn deserialize_into(input: &[u8], reg: &mut Registry) -> Result<()> {
 
         if flags & 1 != 0 {
             if off + 4 > input.len() {
-                // Late failure after registration.
                 if let Some(p) = partial.owned.take() {
                     if !p.is_null() {
                         unsafe {
@@ -114,7 +105,6 @@ pub fn deserialize_into(input: &[u8], reg: &mut Registry) -> Result<()> {
             }
         }
 
-        // Consume child placeholders.
         let need = child_count as usize * 4;
         if off + need > input.len() {
             if let Some(p) = partial.owned.take() {

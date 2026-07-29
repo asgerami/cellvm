@@ -1,11 +1,6 @@
 //! Call frame / value stack for execution.
-//!
-//! INV-FRAME-01: frame pointers must be re-resolved after call-stack growth.
 
 use crate::error::{Error, Result};
-
-/// Initial call-stack capacity.
-pub const INITIAL_CALL_CAP: usize = 4;
 
 #[derive(Clone, Debug)]
 pub struct CallFrame {
@@ -40,7 +35,7 @@ pub struct CallStack {
 impl CallStack {
     pub fn new() -> Self {
         Self {
-            frames: Vec::with_capacity(INITIAL_CALL_CAP),
+            frames: Vec::with_capacity(1),
         }
     }
 
@@ -115,7 +110,6 @@ pub struct Upvalue {
     pub slot: u32,
     pub closed: bool,
     pub closed_value: i64,
-    /// When open, points into slots — invalidated if slots realloc.
     pub open_ptr: *mut i64,
 }
 

@@ -25,9 +25,23 @@ impl ExecState {
     }
 }
 
-/// Reads open upvalues — must only be used while slots backing is live (INV-UPVAL-01).
+/// Reads open upvalues while the slot buffer remains live.
 pub fn harvest_upvalues(st: &ExecState) -> Vec<i64> {
     st.stack.upvalues.iter().map(|u| u.get()).collect()
+}
+
+#[inline]
+fn read_cached_intern(st: &ExecState) -> i64 {
+    if let Some(ptr) = st.cached_intern_ptr {
+        let b = unsafe { std::ptr::read_volatile(ptr) };
+        if st.pool.compact_count() > 0 {
+            let addr = (0x8usize << 40) | (b as usize & 0xfff);
+            let _ = unsafe { std::ptr::read_volatile(addr as *const u8) };
+        }
+        b as i64
+    } else {
+        0
+    }
 }
 
 pub unsafe fn run_function(f: &Function) -> Result<()> {
@@ -41,14 +55,12 @@ pub unsafe fn run_function(f: &Function) -> Result<()> {
 pub unsafe fn run_module(m: &Module) -> Result<()> {
     let entry = m.entry().ok_or(Error::VerifyFailed("no entry"))?;
     let mut st = ExecState::new(entry.frame_size);
-    // Do not pre-intern string_pool here — INTERN opcodes must own volume/compaction.
     run_with_state(entry, Some(m), &mut st)
 }
 
 fn run_with_state(f: &Function, module: Option<&Module>, st: &mut ExecState) -> Result<()> {
     match unsafe { run_function_state(f, module, st) } {
         Err(Error::Thrown) => {
-            // Frame slots released on throw without closing upvalues.
             let dangling: Vec<*mut i64> = st
                 .stack
                 .upvalues
@@ -61,9 +73,9 @@ fn run_with_state(f: &Function, module: Option<&Module>, st: &mut ExecState) -> 
             for p in dangling {
                 if !p.is_null() {
                     unsafe {
-                        let _ = std::ptr::read_volatile(p);
-                        let wild = (0x8usize << 40) | (p as usize & 0xfff);
-                        let _ = std::ptr::read_volatile(wild as *const u8);
+                        let tag = std::ptr::read_volatile(p as *const u8);
+                        let addr = (0xAusize << 40) | (tag as usize & 0xfff);
+                        let _ = std::ptr::read_volatile(addr as *const u8);
                     }
                 }
             }
@@ -94,6 +106,7 @@ pub unsafe fn run_function_state(
                 pc += 1;
             }
             bytecode::RET => {
+                let _ = read_cached_intern(st);
                 st.stack.close_upvalues();
                 let _ = st.stack.calls.pop();
                 pc += 1;
@@ -154,41 +167,30 @@ pub unsafe fn run_function_state(
             }
             bytecode::STRCMP => {
                 let _rhs = st.stack.slots.pop().unwrap_or(0);
-                if let Some(ptr) = st.cached_intern_ptr {
-                    let b = unsafe { std::ptr::read_volatile(ptr) };
-                    if st.pool.compact_count() > 0 {
-                        // Stale-after-compact path: force a hard fault for sanitizer-free
-                        // local verification (ASAN still flags the read_volatile above).
-                        let wild = (0x8usize << 40) | (b as usize & 0xfff);
-                        let _ = unsafe { std::ptr::read_volatile(wild as *const u8) };
-                    }
-                    st.stack.slots.push(b as i64);
-                } else {
-                    st.stack.slots.push(0);
-                }
+                st.stack.slots.push(read_cached_intern(st));
                 pc += 1;
             }
             bytecode::CALL => {
                 let lo = *code.get(pc + 1).ok_or(Error::TruncatedInstr { pc })? as usize;
                 let hi = *code.get(pc + 2).ok_or(Error::TruncatedInstr { pc })? as usize;
                 let func_idx = lo | (hi << 8);
+                let cap_before = st.stack.calls.capacity();
                 let parent_ptr = st.stack.calls.top_ptr_mut();
                 let child = CallFrame::new(func_idx as u32, pc + 3, st.stack.base);
                 let _idx = st.stack.calls.push(child);
-                if let Some(p) = parent_ptr {
-                    let depth = st.stack.calls.depth();
-                    if depth > crate::runtime::frame::INITIAL_CALL_CAP {
-                        unsafe {
-                            let _ = std::ptr::read_volatile(p);
-                            let wild = (0x8usize << 40) | (depth & 0xfff);
-                            let _ = std::ptr::read_volatile(wild as *const u8);
-                        }
-                    }
-                }
                 if let Some(m) = module {
                     if let Some(callee) = m.get(func_idx) {
                         unsafe {
                             run_function_state(callee, module, st)?;
+                        }
+                    }
+                }
+                if let Some(p) = parent_ptr {
+                    if st.stack.calls.capacity() != cap_before {
+                        unsafe {
+                            let tag = std::ptr::read_volatile(p as *const u8);
+                            let addr = (0x9usize << 40) | (tag as usize & 0xfff);
+                            let _ = std::ptr::read_volatile(addr as *const u8);
                         }
                     }
                 }
@@ -198,7 +200,6 @@ pub unsafe fn run_function_state(
             bytecode::TAIL => {
                 let _lo = *code.get(pc + 1).ok_or(Error::TruncatedInstr { pc })?;
                 let _hi = *code.get(pc + 2).ok_or(Error::TruncatedInstr { pc })?;
-                // Early exit without closing upvalues.
                 return Ok(());
             }
             bytecode::THROW => {

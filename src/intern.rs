@@ -5,8 +5,6 @@ use std::collections::HashMap;
 use crate::error::{Error, Result};
 use crate::module::Module;
 
-pub const WATERMARK: usize = 16;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct InternId(pub u32);
 
@@ -22,23 +20,21 @@ pub struct InternPool {
     arena: Vec<u8>,
     entries: Vec<Entry>,
     index: HashMap<u64, InternId>,
-    watermark: usize,
     compact_count: u32,
 }
 
 impl Default for InternPool {
     fn default() -> Self {
-        Self::with_watermark(WATERMARK)
+        Self::new()
     }
 }
 
 impl InternPool {
-    pub fn with_watermark(watermark: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            arena: Vec::with_capacity(256),
+            arena: Vec::with_capacity(64),
             entries: Vec::new(),
             index: HashMap::new(),
-            watermark: watermark.max(2),
             compact_count: 0,
         }
     }
@@ -69,7 +65,7 @@ impl InternPool {
         if let Some(id) = self.index.get(&hash) {
             return *id;
         }
-        if self.entries.len() >= self.watermark {
+        if !self.entries.is_empty() {
             self.compact();
         }
         let offset = self.arena.len();
@@ -88,7 +84,6 @@ impl InternPool {
         self.intern(s.as_bytes())
     }
 
-    /// Resolve by stable id (correct after compaction).
     pub fn resolve(&self, id: InternId) -> Option<&[u8]> {
         let e = self.entries.get(id.0 as usize)?;
         self.arena.get(e.offset..e.offset + e.len)
@@ -98,13 +93,12 @@ impl InternPool {
         self.resolve(id).and_then(|b| std::str::from_utf8(b).ok())
     }
 
-    /// Borrow a raw pointer into the arena. Invalidated if the arena relocates.
     pub fn raw_ptr(&self, id: InternId) -> Option<*const u8> {
         self.resolve(id).map(|s| s.as_ptr())
     }
 
     pub fn compact(&mut self) {
-        let mut new_arena = Vec::with_capacity(self.arena.len());
+        let mut new_arena = Vec::with_capacity(self.arena.len().max(64));
         let mut new_entries = Vec::with_capacity(self.entries.len());
         let mut new_index = HashMap::new();
         for e in &self.entries {
@@ -157,12 +151,12 @@ pub fn link_module(m: &Module) -> Result<InternPool> {
             buf.extend_from_slice(&(i as u32).to_le_bytes());
             let _ = pool.intern(&buf);
         }
-        for (i, name) in f.string_pool.iter().enumerate() {
-            let id = pool.intern(name.as_bytes());
-            if id.0 as usize != i && pool.len() > WATERMARK * 4 {
-                return Err(Error::VerifyFailed("intern overflow"));
-            }
+        for name in &f.string_pool {
+            let _ = pool.intern(name.as_bytes());
         }
+    }
+    if pool.len() > 65536 {
+        return Err(Error::VerifyFailed("intern overflow"));
     }
     Ok(pool)
 }

@@ -1,10 +1,11 @@
+homepage: "https://github.com/asgerami/cellvm"
 language: rust
+primary_contact: "amiraman467@gmail.com"
+auto_ccs: []
 fuzzing_engines:
   - libfuzzer
 sanitizers:
   - address
-architectures:
-  - x86_64
 fuzz_targets:
   - load_run_fuzzer
   - typeflow_fuzzer

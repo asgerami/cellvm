@@ -34,3 +34,4 @@ path = "examples/disasm_module.rs"
 
 [profile.release]
 debug = true
+
