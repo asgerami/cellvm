@@ -1,8 +1,15 @@
+# Build artifacts (root only — do not use bare target/ or it hides vendor/**/target/)
 /target/
 .cargo_home/
+
+# Editor / patch leftovers
 **/*.rs.bk
 *.orig
-!vendor/**/*.orig
 .idea/
 .vscode/
 *.swp
+
+# Vendored crates must be fully tracked for hermetic Fenrir builds
+!vendor/
+!vendor/**
+!vendor/**/*.orig
