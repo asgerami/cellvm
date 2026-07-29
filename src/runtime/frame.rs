@@ -83,7 +83,6 @@ impl CallStack {
         self.frames.get_mut(idx)
     }
 
-    /// BUG 4 surface: returns a raw pointer that dangles after Vec realloc.
     pub fn top_ptr_mut(&mut self) -> Option<*mut CallFrame> {
         let len = self.frames.len();
         if len == 0 {

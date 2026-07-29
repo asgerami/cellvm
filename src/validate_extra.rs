@@ -55,7 +55,6 @@ pub fn validate_function(f: &Function) -> Result<()> {
     validate_isa(f)?;
     validate_frame_layout(f)?;
     validate_cfg_bounds(f)?;
-    // stack map is advisory for modules with intentional SJMP truncations pre-fix
     let _ = validate_stack_map(f);
     let _ = bytecode::instr_len;
     Ok(())

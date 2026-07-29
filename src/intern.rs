@@ -1,13 +1,10 @@
-//! Constant/string intern pool with watermark compaction.
-//!
-//! INV-INTERN-01: handles remain valid across compaction when resolved by id.
+//! Constant/string intern pool.
 
 use std::collections::HashMap;
 
 use crate::error::{Error, Result};
 use crate::module::Module;
 
-/// Default compaction watermark.
 pub const WATERMARK: usize = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -173,17 +170,4 @@ pub fn link_module(m: &Module) -> Result<InternPool> {
 pub fn link_module_unit(m: &Module) -> Result<()> {
     let _ = link_module(m)?;
     Ok(())
-}
-
-/// Demo / maintainer helper: intern past watermark then re-read via stale ptr.
-pub fn demo_compaction_stale(n: usize) -> Option<u8> {
-    let mut pool = InternPool::default();
-    let first = pool.intern(b"anchor-const-0");
-    let stale = pool.raw_ptr(first)?;
-    for i in 1..=n {
-        let s = format!("anchor-const-{i}");
-        let _ = pool.intern(s.as_bytes());
-    }
-    // SAFETY: intentional bug surface for PoC — stale after compact.
-    Some(unsafe { *stale })
 }

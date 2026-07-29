@@ -182,9 +182,8 @@ pub fn assemble(text: &str) -> Result<Module> {
                 st.emit_u8(0);
             }
             other => {
-                return Err(Error::VerifyFailed(box_leak(format!(
-                    "asm unknown {other} @ {lineno}"
-                ))));
+                let msg = format!("asm unknown {other} @ {lineno}");
+                return Err(Error::VerifyFailed(Box::leak(msg.into_boxed_str())));
             }
         }
     }
@@ -215,10 +214,6 @@ pub fn assemble(text: &str) -> Result<Module> {
     Ok(Module {
         functions: vec![func],
     })
-}
-
-fn box_leak(s: String) -> &'static str {
-    Box::leak(s.into_boxed_str())
 }
 
 pub fn disassemble(f: &Function) -> String {

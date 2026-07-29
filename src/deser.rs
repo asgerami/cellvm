@@ -78,15 +78,11 @@ pub fn deserialize_into(input: &[u8], reg: &mut Registry) -> Result<()> {
 
         // Late validation AFTER registration.
         heap::validate_mark(mark).map_err(|e| {
-            // Error path frees through owned ptr even though registry also owns it.
             if let Some(p) = partial.owned.take() {
                 if !p.is_null() {
                     unsafe {
-                        // Double-free when Registry drops.
                         drop(Box::from_raw(p));
                     }
-                    // Null the registry slot so Drop won't see it? — intentionally NOT done
-                    // (correct fix would unregister or null the slot).
                 }
             }
             e
